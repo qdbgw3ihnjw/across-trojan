@@ -1,0 +1,29 @@
+# Dockerfile for trojan based alpine
+# Reference URL:
+# https://github.com/trojan-gfw/trojan
+# https://trojan-gfw.github.io/trojan/
+
+FROM alpine:latest
+#WORKDIR /root
+#RUN set -ex \
+#	&& apk add --no-cache git build-base cmake boost-dev openssl-dev mariadb-connector-c-dev \
+#	&& git clone https://github.com/trojan-gfw/trojan.git \
+#	&& cd trojan \
+#	&& cmake . \
+#	&& make \
+#	&& strip -s trojan
+
+COPY cert/csr.conf /etc/trojan/csr.conf
+RUN set -ex \
+    && apk add openssl \
+    && cd /etc/trojan \
+    && openssl req -x509 -sha256 -days 356 -nodes -newkey rsa:2048 -subj "/CN=commonname" -keyout rootCA.key -out rootCA.crt \
+    && openssl genrsa -out server.key 2048 \
+    && openssl req -new -key server.key -out server.csr -config csr.conf \
+    && openssl x509 -req -in server.csr -CA rootCA.crt -CAkey rootCA.key -CAcreateserial -out server.crt -days 365 -sha256 \
+    && apk add --no-cache tzdata ca-certificates libstdc++ boost-system boost-program_options mariadb-connector-c
+COPY trojan /usr/bin/trojan
+COPY server.conf /etc/trojan/server.conf
+#COPY cert/server.key /etc/trojan/server.key
+#COPY cert/server.crt /etc/trojan/server.crt
+CMD [ "/usr/bin/trojan", "-c", "/etc/trojan/server.conf" ]
